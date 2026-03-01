@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跑酷</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #1e313b;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+        }
+        .game-container {
+            background: #1e3f4b;
+            padding: 20px;
+            border-radius: 50px;
+            box-shadow: 0 25px 35px #0b1d26;
+        }
+        canvas {
+            display: block;
+            width: 1000px;
+            height: 500px;
+            border-radius: 30px;
+            background: #c4e0f0;
+            box-shadow: inset 0 -10px 20px #438297, 0 15px 20px black;
+        }
+        .info-panel {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 18px;
+            padding: 0 20px;
+        }
+        .level-badge {
+            background: #19323f;
+            color: #ffdba3;
+            font-size: 2.2rem;
+            font-weight: 800;
+            padding: 8px 40px;
+            border-radius: 60px;
+            box-shadow: inset 0 -5px 0 #2d5b70;
+        }
+        .level-badge span {
+            font-size: 1.3rem;
+            color: #bcd6e3;
+            margin-right: 12px;
+        }
+        .tips {
+            background: #1b3f50;
+            padding: 8px 32px;
+            border-radius: 60px;
+            border: 1px solid #6bb0c7;
+            color: #ffe39c;
+            font-size: 1.3rem;
+        }
+        .tips kbd {
+            background: #256477;
+            padding: 6px 16px;
+            border-radius: 36px;
+            margin: 0 5px;
+            color: #ffefbb;
+        }
+        button {
+            background: #f5bf73;
+            border: none;
+            font-size: 1.6rem;
+            font-weight: bold;
+            padding: 8px 42px;
+            border-radius: 60px;
+            box-shadow: 0 8px 0 #a17740, 0 8px 15px black;
+            cursor: pointer;
+            transition: 0.05s linear;
+            color: #2f1f0c;
+        }
+        button:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #8a6237, 0 12px 18px black;
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <canvas id="gameCanvas" width="1000" height="500"></canvas>
+    <div class="info-panel">
+        <div class="level-badge"><span>🏯</span> 第 <span id="levelDisplay">1</span> / 3 关</div>
+        <div class="tips">
+            <kbd>←→</kbd> 移动 <kbd>空格</kbd> 跳跃
+        </div>
+        <button id="restartBtn">重玩本关</button>
+    </div>
+</div>
+<script>
+    (function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const levelSpan = document.getElementById('levelDisplay');
+
+        // ---------- 世界常量 ----------
+        const WORLD_WIDTH = 2400;               // 每关地图长度
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = -10.2;
+        const MOVE_SPEED = 5.0;
+        const PLAYER_SIZE = 22;                  // 小正方形
+
+        // 玩家属性
+        let player = {
+            x: 0, y: 0, vx: 0, vy: 0, size: PLAYER_SIZE, grounded: false, alive: true
+        };
+
+        // 固定重生点 (每关配置)
+        let spawnPoint = { x: 0, y: 0 };
+        // 固定终点区域 (抵达后过关)
+        let finishZone = { x: 0, y: 0, w: 60, h: 60 };
+
+        // 世界元素
+        let platforms = [];              // 平台 {x, y, w, h, type}
+        let staticSpikes = [];            // 固定尖刺 {x, y, w, h}
+        let arrowLaunchers = [];          // 箭塔 {x, y, direction, cooldown, timer}
+        let arrows = [];                  // 飞行箭 {x, y, vx, vy, w, h}
+
+        // 关卡控制
+        let currentLevel = 1;
+        let gameCompleted = false;
+        let gameOver = false;              // 掉出世界死亡
+
+        // 帧计数器 (用于箭塔)
+        let frame = 0;
+        // 相机
+        let cameraX = 0;
+
+        // 按键
+        let leftPressed = false, rightPressed = false;
+
+        // ---------- UI 更新 ----------
+        function updateLevelDisplay() {
+            levelSpan.textContent = currentLevel;
+        }
+
+        // ---------- 加载三个固定关卡 (重生点、终点均固定) ----------
+        function loadLevel(level) {
+            // 清空动态数据
+            platforms = [];
+            staticSpikes = [];
+            arrowLaunchers = [];
+            arrows = [];
+
+            // 根据关卡索引构建
+            if (level === 1) {
+                // 平台地面
+                platforms.push({ x: 0, y: 430, w: 800, h: 18, type: 'ground' });
+                platforms.push({ x: 1000, y: 430, w: 700, h: 18, type: 'ground' });
+                platforms.push({ x: 1800, y: 430, w: 600, h: 18, type: 'ground' }); // 终点区域
+
+                // 空中平台
+                platforms.push({ x: 500, y: 330, w: 100, h: 16, type: 'stone' });
+                platforms.push({ x: 1200, y: 270, w: 130, h: 16, type: 'wood' });
+                platforms.push({ x: 2000, y: 350, w: 90, h: 16, type: 'stone' });
+
+                // 静态尖刺
+                staticSpikes.push({ x: 200, y: 418, w: 18, h: 14 });
+                staticSpikes.push({ x: 650, y: 418, w: 18, h: 14 });
+                staticSpikes.push({ x: 1250, y: 254, w: 18, h: 14 }); // 木板上
+                staticSpikes.push({ x: 2050, y: 334, w: 18, h: 14 }); // 石板上
+
+                // 箭塔 (慢速)
+                arrowLaunchers.push({ x: 400, y: 300, direction: 'right', cooldown: 100, timer: 30 });
+                arrowLaunchers.push({ x: 1500, y: 400, direction: 'left', cooldown: 110, timer: 50 });
+
+                // 固定重生点 (起始)
+                spawnPoint = { x: 280, y: 380 };
+                // 固定终点区域 (终点坐标)
+                finishZone = { x: 2100, y: 380, w: 50, h: 50 };
+            }
+            else if (level === 2) {
+                platforms.push({ x: 0, y: 440, w: 600, h: 18, type: 'ground' });
+                platforms.push({ x: 750, y: 440, w: 500, h: 18, type: 'ground' });
+                platforms.push({ x: 1400, y: 440, w: 1000, h: 18, type: 'ground' });
+
+                platforms.push({ x: 350, y: 340, w: 100, h: 16, type: 'stone' });
+                platforms.push({ x: 900, y: 280, w: 140, h: 16, type: 'wood' });
+                platforms.push({ x: 1600, y: 320, w: 110, h: 16, type: 'stone' });
+                platforms.push({ x: 2000, y: 240, w: 150, h: 16, type: 'wood' });
+
+                staticSpikes.push({ x: 150, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 400, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 850, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 950, y: 264, w: 18, h: 14 });
+                staticSpikes.push({ x: 1650, y: 304, w: 18, h: 14 });
+                staticSpikes.push({ x: 2050, y: 224, w: 18, h: 14 });
+
+                arrowLaunchers.push({ x: 500, y: 410, direction: 'right', cooldown: 95, timer: 20 });
+                arrowLaunchers.push({ x: 1100, y: 250, direction: 'left', cooldown: 115, timer: 60 });
+                arrowLaunchers.push({ x: 1800, y: 400, direction: 'right', cooldown: 85, timer: 10 });
+
+                spawnPoint = { x: 250, y: 390 };
+                finishZone = { x: 2150, y: 390, w: 50, h: 50 };
+            }
+            else if (level === 3) {
+                platforms.push({ x: 0, y: 440, w: 500, h: 18, type: 'ground' });
+                platforms.push({ x: 650, y: 440, w: 400, h: 18, type: 'ground' });
+                platforms.push({ x: 1200, y: 440, w: 400, h: 18, type: 'ground' });
+                platforms.push({ x: 1750, y: 440, w: 650, h: 18, type: 'ground' });
+
+                platforms.push({ x: 250, y: 320, w: 100, h: 16, type: 'stone' });
+                platforms.push({ x: 800, y: 260, w: 140, h: 16, type: 'wood' });
+                platforms.push({ x: 1350, y: 300, w: 130, h: 16, type: 'stone' });
+                platforms.push({ x: 1900, y: 340, w: 150, h: 16, type: 'wood' });
+                platforms.push({ x: 2150, y: 240, w: 120, h: 16, type: 'stone' });
+
+                staticSpikes.push({ x: 120, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 320, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 720, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 920, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 1300, y: 428, w: 18, h: 14 });
+                staticSpikes.push({ x: 280, y: 304, w: 18, h: 14 });
+                staticSpikes.push({ x: 850, y: 244, w: 18, h: 14 });
+                staticSpikes.push({ x: 1950, y: 324, w: 18, h: 14 });
+                staticSpikes.push({ x: 2200, y: 224, w: 18, h: 14 });
+
+                arrowLaunchers.push({ x: 300, y: 410, direction: 'right', cooldown: 90, timer: 15 });
+                arrowLaunchers.push({ x: 1000, y: 400, direction: 'left', cooldown: 105, timer: 45 });
+                arrowLaunchers.push({ x: 1500, y: 400, direction: 'right', cooldown: 110, timer: 70 });
+                arrowLaunchers.push({ x: 2000, y: 310, direction: 'left', cooldown: 95, timer: 25 });
+
+                spawnPoint = { x: 220, y: 390 };
+                finishZone = { x: 2250, y: 390, w: 50, h: 50 };
+            }
+
+            // 设置玩家到重生点
+            player.x = spawnPoint.x;
+            player.y = spawnPoint.y;
+            player.vx = 0;
+            player.vy = 0;
+            player.alive = true;
+            gameOver = false;
+            gameCompleted = false;
+
+            updateLevelDisplay();
+        }
+
+        // ---------- 重置当前关卡 ----------
+        function resetCurrentLevel() {
+            loadLevel(currentLevel);
+        }
+
+        // ---------- 进入下一关 ----------
+        function goToNextLevel() {
+            if (currentLevel < 3) {
+                currentLevel++;
+                loadLevel(currentLevel);
+            } else {
+                gameCompleted = true;  // 第三关通关
+            }
+        }
+
+        // ---------- 玩家重生 (回到固定重生点) ----------
+        function respawnPlayer() {
+            player.x = spawnPoint.x;
+            player.y = spawnPoint.y;
+            player.vx = 0;
+            player.vy = 0;
+            player.alive = true;
+            // 重生时清除所有箭，避免落地立刻被射
+            arrows = [];
+        }
+
+        // ---------- 碰撞与逻辑 ----------
+        function handleCollisions() {
+            if (!player.alive) return;
+
+            // 水平移动
+            player.x += player.vx;
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.size > WORLD_WIDTH) {
+                // 抵达终点 (但终点区域单独判定)
+                // 为了不超出世界，限制
+                player.x = WORLD_WIDTH - player.size;
+            }
+
+            // 平台水平推开
+            for (let p of platforms) {
+                if (player.x < p.x + p.w && player.x + player.size > p.x) {
+                    if (player.y < p.y + p.h && player.y + player.size > p.y) {
+                        let leftDist = player.x + player.size - p.x;
+                        let rightDist = p.x + p.w - player.x;
+                        if (leftDist < rightDist) player.x = p.x - player.size;
+                        else player.x = p.x + p.w;
+                    }
+                }
+            }
+
+            // 垂直移动
+            player.y += player.vy;
+            if (player.y < 0) { player.y = 0; player.vy = 0; }
+
+            player.grounded = false;
+            for (let p of platforms) {
+                if (player.x < p.x + p.w && player.x + player.size > p.x) {
+                    if (player.vy >= 0 && player.y + player.size > p.y && player.y < p.y) {
+                        player.y = p.y - player.size;
+                        player.vy = 0;
+                        player.grounded = true;
+                    }
+                    else if (player.vy < 0 && player.y < p.y + p.h && player.y + player.size > p.y + p.h) {
+                        player.y = p.y + p.h;
+                        player.vy = 0;
+                    }
+                }
+            }
+
+            // 边界死亡
+            if (player.y + player.size > 530) {
+                gameOver = true;
+                return;
+            }
+
+            // 静态尖刺伤害 -> 重生
+            for (let s of staticSpikes) {
+                if (player.x < s.x + s.w && player.x + player.size > s.x &&
+                    player.y < s.y + s.h && player.y + player.size > s.y) {
+                    respawnPlayer();
+                    break;
+                }
+            }
+
+            // 箭矢伤害
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                let arr = arrows[i];
+                if (player.x < arr.x + arr.w && player.x + player.size > arr.x &&
+                    player.y < arr.y + arr.h && player.y + player.size > arr.y) {
+                    respawnPlayer();
+                    arrows.splice(i, 1);
+                    break;
+                }
+            }
+
+            // 终点检测 (玩家进入终点区域)
+            if (player.x < finishZone.x + finishZone.w && player.x + player.size > finishZone.x &&
+                player.y < finishZone.y + finishZone.h && player.y + player.size > finishZone.y) {
+                // 抵达终点，进入下一关
+                goToNextLevel();
+                return;
+            }
+        }
+
+        // ---------- 箭塔更新 ----------
+        function updateArrowMachines() {
+            for (let launcher of arrowLaunchers) {
+                launcher.timer--;
+                if (launcher.timer <= 0) {
+                    let arrowSpeed = 4;
+                    let arrowW = 18, arrowH = 6;
+                    let startX = launcher.x;
+                    let startY = launcher.y - 8;
+                    let vx = (launcher.direction === 'right') ? arrowSpeed : -arrowSpeed;
+                    arrows.push({ x: startX, y: startY, vx: vx, vy: 0, w: arrowW, h: arrowH });
+                    launcher.timer = launcher.cooldown;
+                }
+            }
+
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                let arr = arrows[i];
+                arr.x += arr.vx;
+                if (arr.x < -200 || arr.x > WORLD_WIDTH + 200) {
+                    arrows.splice(i, 1);
+                }
+            }
+        }
+
+        // ---------- 相机 ----------
+        function updateCamera() {
+            let targetCam = player.x - canvas.width / 3;
+            targetCam = Math.max(0, Math.min(targetCam, WORLD_WIDTH - canvas.width));
+            cameraX += (targetCam - cameraX) * 0.1;
+        }
+
+        // ---------- 主更新 ----------
+        function update() {
+            if (gameOver || gameCompleted) return;
+
+            if (player.alive) {
+                // 移动输入
+                if (leftPressed && !rightPressed) player.vx = -MOVE_SPEED;
+                else if (rightPressed && !leftPressed) player.vx = MOVE_SPEED;
+                else player.vx = 0;
+
+                player.vy += GRAVITY;
+
+                handleCollisions();
+                if (gameOver || gameCompleted) return;
+
+                updateArrowMachines();
+            }
+
+            updateCamera();
+        }
+
+        // ---------- 绘制 ----------
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 天空
+            let grad = ctx.createLinearGradient(0, 0, 0, 500);
+            grad.addColorStop(0, '#c9e6f5');
+            grad.addColorStop(0.8, '#cedfa8');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 云
+            ctx.fillStyle = 'rgba(255,255,240,0.3)';
+            ctx.beginPath();
+            ctx.arc(200 - cameraX * 0.2, 100, 70, 0, Math.PI*2);
+            ctx.arc(900 - cameraX * 0.2, 170, 60, 0, Math.PI*2);
+            ctx.fill();
+
+            // 平台
+            for (let p of platforms) {
+                let sx = p.x - cameraX;
+                if (sx + p.w < 0 || sx > canvas.width) continue;
+                ctx.fillStyle = (p.type === 'ground') ? '#759b68' : '#b59262';
+                ctx.fillRect(sx, p.y, p.w, p.h);
+                ctx.fillStyle = '#ebf0b2';
+                ctx.fillRect(sx, p.y-2, p.w, 3);
+            }
+
+            // 静态尖刺
+            for (let s of staticSpikes) {
+                let sx = s.x - cameraX;
+                if (sx + s.w < 0 || sx > canvas.width) continue;
+                ctx.fillStyle = '#b32e2e';
+                ctx.beginPath();
+                ctx.moveTo(sx, s.y + s.h);
+                ctx.lineTo(sx + s.w/2, s.y);
+                ctx.lineTo(sx + s.w, s.y + s.h);
+                ctx.fill();
+                ctx.fillStyle = '#e06666';
+                ctx.beginPath();
+                ctx.moveTo(sx+2, s.y + s.h-2);
+                ctx.lineTo(sx + s.w/2, s.y+4);
+                ctx.lineTo(sx + s.w-2, s.y + s.h-2);
+                ctx.fill();
+            }
+
+            // 箭塔
+            for (let t of arrowLaunchers) {
+                let sx = t.x - cameraX;
+                if (sx < -40 || sx > canvas.width+40) continue;
+                ctx.fillStyle = '#4d3c2c';
+                ctx.fillRect(sx-5, t.y-20, 20, 30);
+                ctx.fillStyle = '#8b6e50';
+                ctx.fillRect(sx, t.y-14, 10, 18);
+                ctx.fillStyle = '#c9923a';
+                if (t.direction === 'right') ctx.fillRect(sx+8, t.y-8, 20, 8);
+                else ctx.fillRect(sx-18, t.y-8, 20, 8);
+            }
+
+            // 箭
+            for (let arr of arrows) {
+                let sx = arr.x - cameraX;
+                if (sx < -40 || sx > canvas.width+40) continue;
+                ctx.fillStyle = '#4a2e1e';
+                ctx.fillRect(sx, arr.y, arr.w, arr.h);
+                ctx.fillStyle = '#b57c48';
+                ctx.beginPath();
+                ctx.moveTo(sx + (arr.vx > 0 ? arr.w : 0), arr.y-3);
+                ctx.lineTo(sx + (arr.vx > 0 ? arr.w+8 : -8), arr.y+3);
+                ctx.lineTo(sx + (arr.vx > 0 ? arr.w : 0), arr.y+9);
+                ctx.fill();
+            }
+
+            // 终点区域 (半透明标记)
+            let fx = finishZone.x - cameraX;
+            if (fx + finishZone.w > 0 && fx < canvas.width) {
+                ctx.globalAlpha = 0.4;
+                ctx.fillStyle = '#f0e68c';
+                ctx.fillRect(fx, finishZone.y, finishZone.w, finishZone.h);
+                ctx.globalAlpha = 1.0;
+                ctx.strokeStyle = '#ffdb7c';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(fx, finishZone.y, finishZone.w, finishZone.h);
+                ctx.font = 'bold 20px sans-serif';
+                ctx.fillStyle = '#000';
+                ctx.fillText('🚩', fx+10, finishZone.y+35);
+            }
+
+            // 重生点标记 (固定旗子)
+            let spx = spawnPoint.x - cameraX;
+            if (spx > 0 && spx < canvas.width) {
+                ctx.fillStyle = '#51c2d1';
+                ctx.beginPath();
+                ctx.moveTo(spx, spawnPoint.y-20);
+                ctx.lineTo(spx+18, spawnPoint.y-28);
+                ctx.lineTo(spx, spawnPoint.y-36);
+                ctx.fill();
+                ctx.fillStyle = '#287e8a';
+                ctx.fillRect(spx-2, spawnPoint.y-40, 5, 40);
+            }
+
+            // 玩家
+            let psx = player.x - cameraX;
+            ctx.fillStyle = '#ea9f5a';
+            ctx.fillRect(psx, player.y, player.size, player.size);
+            ctx.fillStyle = '#c94f4f';
+            ctx.fillRect(psx, player.y+player.size-8, player.size, 5);
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(psx+6, player.y+7, 3, 0, 2*Math.PI);
+            ctx.arc(psx+16, player.y+7, 3, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#202020';
+            ctx.beginPath();
+            ctx.arc(psx+5, player.y+6, 1.5, 0, 2*Math.PI);
+            ctx.arc(psx+15, player.y+6, 1.5, 0, 2*Math.PI);
+            ctx.fill();
+
+            if (gameCompleted) {
+                ctx.fillStyle = 'rgba(20,50,30,0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = 'bold 58px sans-serif';
+                ctx.fillStyle = '#ffeaa5';
+                ctx.shadowBlur = 18;
+                ctx.fillText('✨ 全通关 ✨', 200, 270);
+                ctx.shadowBlur = 0;
+            } else if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = 'bold 50px sans-serif';
+                ctx.fillStyle = '#f8cf89';
+                ctx.fillText('GAME OVER', 280, 260);
+                ctx.font = '26px monospace';
+                ctx.fillText('点击「重玩本关」', 320, 340);
+            }
+        }
+
+        // ---------- 跳跃 ----------
+        function jump() {
+            if (gameOver || gameCompleted) return;
+            if (player.alive && player.grounded) {
+                player.vy = JUMP_FORCE;
+                player.grounded = false;
+            }
+        }
+
+        // 事件
+        function keydown(e) {
+            if (e.code === 'Space') { e.preventDefault(); jump(); }
+            if (e.code === 'ArrowLeft') { e.preventDefault(); leftPressed = true; }
+            if (e.code === 'ArrowRight') { e.preventDefault(); rightPressed = true; }
+        }
+        function keyup(e) {
+            if (e.code === 'ArrowLeft') { e.preventDefault(); leftPressed = false; }
+            if (e.code === 'ArrowRight') { e.preventDefault(); rightPressed = false; }
+            if (e.code === 'Space') e.preventDefault();
+        }
+        window.addEventListener('keydown', keydown);
+        window.addEventListener('keyup', keyup);
+
+        canvas.addEventListener('click', jump);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); });
+
+        document.getElementById('restartBtn').addEventListener('click', resetCurrentLevel);
+        loadLevel(1);
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+
+        // 阻止箭头滚动
+        window.addEventListener('keydown', (e) => {
+            if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+        }, { passive: false });
+
+    })();
+</script>
+</body>
+</html>
