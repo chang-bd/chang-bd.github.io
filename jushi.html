@@ -1,0 +1,103 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* 动态渐变背景 */
+        body {
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+            font-family: 'Arial', sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        
+        .demo-box {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin: 20px 0;
+            backdrop-filter: blur(5px);
+        }
+        
+        h1, h2 {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .output {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #23a6d5;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #23a6d5, #23d5ab);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>这是一个A+B Problem</h1>
+    <h2>点击下面的按钮开始</h2>
+    <div class="demo-box">
+        <input type="number" id="num1" value="10" style="width: 80px;">
+        <span> + </span>
+        <input type="number" id="num2" value="20" style="width: 80px;">
+        <button onclick="calculate()">计算</button>
+        <div class="output" id="calcOutput">
+            点击计算按钮查看结果
+        </div>
+    </div>
+
+    <h1>这是一个计数器</h1>
+    <h2>点击下面的按钮开始</h2>
+    <div class="demo-box">
+        <button onclick="calculated()">i++</button>
+        <div class="output" id="calcoutput">
+            0
+        </div>
+    </div>
+
+    <script>
+        function calculate(){
+            let num1=document.getElementById('num1').value;
+            let num2=document.getElementById('num2').value;
+            num1=Number(num1);
+            num2=Number(num2);
+            let result=num1+num2;
+            let output=num1+'+'+num2+'='+result;
+            document.getElementById('calcOutput').innerHTML=output;
+        }
+
+        let x=0;
+        function calculated(){
+            x=Number(x);
+            x=x+1;
+            let output=x;
+            document.getElementById('calcoutput').innerHTML=output;
+        }
+    </script>
+</body>
+</html>
