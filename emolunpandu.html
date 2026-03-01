@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>恶魔轮盘</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Courier New', monospace; }
+        body {
+            background: #0a0c0b;
+            color: #00ff9d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+        }
+        .game-container {
+            max-width: 900px;
+            width: 100%;
+            background: #1a1e1c;
+            border: 2px solid #00ff9d;
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: 0 0 30px #00ff9d88;
+        }
+        .header {
+            text-align: center;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 0 0 8px #0f0;
+            letter-spacing: 2px;
+        }
+        .status-panel {
+            display: flex;
+            justify-content: space-between;
+            background: #0f1312;
+            padding: 16px 20px;
+            border-radius: 40px;
+            border: 1px solid #00cc7a;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            font-size: 20px;
+        }
+        .hp { font-weight: bold; }
+        .hp span { color: #ff6b6b; margin: 0 4px; }
+        .ammo-box {
+            background: #1f2a26;
+            padding: 8px 20px;
+            border-radius: 40px;
+            border: 1px solid #0f0;
+        }
+        .money {
+            background: #000;
+            color: gold;
+            padding: 8px 20px;
+            border-radius: 40px;
+            border: 1px solid gold;
+            font-weight: bold;
+        }
+        .log-area {
+            background: #0b0f0e;
+            border-radius: 24px;
+            padding: 16px 22px;
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #0f0;
+            margin-bottom: 24px;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #b3ffd9;
+        }
+        .section-title {
+            font-size: 18px;
+            margin: 16px 0 8px;
+            font-weight: bold;
+            border-left: 6px solid #0f0;
+            padding-left: 16px;
+        }
+        .inventory-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 10px 0 10px;
+        }
+        .item-card {
+            background: #14221c;
+            border: 1px solid #0f0;
+            border-radius: 40px;
+            padding: 8px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            box-shadow: 0 2px 0 #00553a;
+        }
+        .item-count {
+            background: #000;
+            border-radius: 20px;
+            padding: 2px 12px;
+            color: #fff;
+            font-weight: bold;
+        }
+        .turn-indicator {
+            font-size: 26px;
+            text-align: center;
+            margin: 20px 0 20px;
+            background: #0b100e;
+            padding: 12px;
+            border-radius: 60px;
+            border: 2px solid #0f0;
+            text-transform: uppercase;
+        }
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin: 20px 0 10px;
+        }
+        .action-btn {
+            background: #1e2e28;
+            border: 2px solid #00aa6c;
+            color: #adffd8;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 14px 24px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.1s ease;
+            min-width: 150px;
+            flex: 1 1 auto;
+            box-shadow: 0 5px 0 #004d33;
+        }
+        .action-btn:hover {
+            background: #2b4a3a;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #004d33;
+        }
+        .action-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #004d33;
+        }
+        .action-btn:disabled {
+            opacity: 0.3;
+            pointer-events: none;
+            border-color: #5f7a70;
+        }
+        .danger-btn {
+            border-color: #ff7a7a;
+            color: #ffcece;
+            box-shadow: 0 5px 0 #7a2e2e;
+        }
+        .footer {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .footer button {
+            flex: 1;
+            background: #1a2f26;
+            border: 1px solid #0f0;
+            color: #0f0;
+            padding: 12px;
+            border-radius: 40px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .footer button:hover {
+            background: #1e3d30;
+        }
+    </style>
+</head>
+<body>
+<div class="game-container" id="gameRoot">
+    <div class="header">🔫 恶魔轮盘</div>
+
+    <!-- 状态行 -->
+    <div class="status-panel">
+        <div class="hp">❤️ 你 <span id="yourHp">6</span> / 6</div>
+        <div class="hp">👿 恶魔 <span id="enemyHp">6</span> / 6</div>
+        <div class="ammo-box" id="ammoDisplay">🔴实弹 ? ⚪空弹 ?</div>
+        <div class="money" id="moneyDisplay">💰 $0</div>
+    </div>
+
+    <!-- 事件日志 -->
+    <div class="log-area" id="logPanel">🌑 游戏载入，恶魔低语...</div>
+
+    <!-- 玩家道具 -->
+    <div class="section-title">🎒 你的道具 <span style="color:#ffd700; font-size:14px;">(每轮+5个)</span></div>
+    <div class="inventory-grid" id="playerInventory"></div>
+
+    <!-- 恶魔道具 (仅展示) -->
+    <div class="section-title">👾 恶魔道具 <span style="color:#ff9999; font-size:14px;">(每轮+4个)</span></div>
+    <div class="inventory-grid" id="enemyInventory"></div>
+
+    <!-- 回合指示 & 操作区 -->
+    <div class="turn-indicator" id="turnText">⚡ 你的回合</div>
+    <div class="action-buttons" id="actionPanel"></div>
+
+    <!-- 底部控制 -->
+    <div class="footer">
+        <button id="btnContinue">⏩ 强制结束回合</button>
+        <button id="btnReset">🔄 重新开始</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    // -------------------- 游戏状态 --------------------
+    let state = {
+        yourHp: 6,
+        enemyHp: 6,
+        money: 0,
+
+        yourItems: [0,0,0,0,0],      // 放大镜,手铐,小刀,烟,饮料
+        yourItemCount: 0,
+        enemyItems: [0,0,0,0,0],
+        enemyItemCount: 0,
+
+        bullets: [],                  // 子弹队列: 1实弹 2空弹
+        liveLeft: 0,
+        blankLeft: 0,
+
+        turn: 'player',                // 'player' 或 'enemy'
+        extraTurn: false,              // 手铐带来的额外回合(仅玩家)
+        damageBoost: 1,                 // 玩家小刀加成
+        enemyDamageBoost: 1,            // 恶魔小刀加成
+
+        // 用于恶魔AI的临时记录
+        enemyKnows: 0,                  // 0未知 1实弹 2空弹 (通过放大镜)
+        enemyHandcuff: false            // 恶魔手铐标记
+    };
+
+    const itemNames = ["放大镜","手铐","小刀","烟","饮料"];
+
+    // -------------------- UI元素绑定 --------------------
+    const elYourHp = document.getElementById('yourHp');
+    const elEnemyHp = document.getElementById('enemyHp');
+    const elAmmo = document.getElementById('ammoDisplay');
+    const elMoney = document.getElementById('moneyDisplay');
+    const logPanel = document.getElementById('logPanel');
+    const turnText = document.getElementById('turnText');
+    const playerInvDiv = document.getElementById('playerInventory');
+    const enemyInvDiv = document.getElementById('enemyInventory');
+    const actionPanel = document.getElementById('actionPanel');
+    const btnContinue = document.getElementById('btnContinue');
+    const btnReset = document.getElementById('btnReset');
+
+    // 辅助: 追加日志
+    function addLog(msg) {
+        logPanel.innerHTML += '› ' + msg + '<br>';
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    // 刷新所有UI
+    function refreshUI() {
+        elYourHp.innerText = state.yourHp;
+        elEnemyHp.innerText = state.enemyHp;
+        elAmmo.innerText = `🔴实弹 ${state.liveLeft}  ⚪空弹 ${state.blankLeft}`;
+        elMoney.innerText = `💰 $${state.money.toFixed(2)}`;
+
+        // 玩家道具栏
+        let pHtml = '';
+        for (let i=0; i<5; i++) {
+            let cnt = state.yourItems[i];
+            pHtml += `<div class="item-card">${itemNames[i]} <span class="item-count">${cnt}</span></div>`;
+        }
+        playerInvDiv.innerHTML = pHtml;
+
+        // 恶魔道具栏
+        let eHtml = '';
+        for (let i=0; i<5; i++) {
+            let cnt = state.enemyItems[i];
+            eHtml += `<div class="item-card">${itemNames[i]} <span class="item-count">${cnt}</span></div>`;
+        }
+        enemyInvDiv.innerHTML = eHtml;
+
+        // 回合指示
+        if (checkGameOver()) return;
+        turnText.innerText = state.turn === 'player' ? '⚡ 你的回合' : '👾 恶魔回合';
+    }
+
+    // 检查游戏结束
+    function checkGameOver() {
+        if (state.yourHp <= 0) {
+            turnText.innerText = '💀 你输了...';
+            disableButtons(true);
+            return true;
+        } else if (state.enemyHp <= 0) {
+            turnText.innerText = '🏆 你赢了 !';
+            disableButtons(true);
+            return true;
+        }
+        return false;
+    }
+
+    function disableButtons(disabled) {
+        document.querySelectorAll('.action-btn, #btnContinue').forEach(btn => { btn.disabled = disabled; });
+    }
+
+    // -------------------- 随机 (模拟C++ rand风格) --------------------
+    let seed = (Date.now() & 0x7fffffff);
+    function cppRand() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return (seed >> 16) & 0x7fff;  // 0~32767
+    }
+    function Rand(x, y) {
+        let A = cppRand();
+        let B = cppRand();
+        let range = y - x + 1;
+        return (A * B) % range + x;
+    }
+
+    // -------------------- 子弹生成 + 道具补给 (玩家每轮多1个道具) --------------------
+    function buildGun() {
+        if (checkGameOver()) return;
+
+        let newKong = Rand(1,4);
+        let newShi = Rand(1,4);
+        state.liveLeft = newShi;
+        state.blankLeft = newKong;
+
+        // 随机排列子弹
+        let a1 = newKong, a2 = newShi;
+        let newBullets = [];
+        for (let i = 0; i < newShi + newKong; i++) {
+            let sum = Rand(1, a1 + a2);
+            if (sum <= a1) {
+                newBullets.push(2); // 空弹
+                a1--;
+            } else {
+                newBullets.push(1); // 实弹
+                a2--;
+            }
+        }
+        state.bullets = newBullets;
+        addLog(`🔫 新弹匣: ${newShi}实弹 ${newKong}空弹`);
+
+        // 玩家获得道具 (上限8) - 每轮比恶魔多1个 (原4个 -> 5个)
+        let playerMax = Math.min(5, 8 - state.yourItemCount);
+        if (playerMax > 0) {
+            let names = [];
+            for (let i=0; i<playerMax; i++) {
+                let k = Rand(0,4);
+                state.yourItems[k]++;
+                state.yourItemCount++;
+                names.push(itemNames[k]);
+            }
+            addLog(`🎁 你获得 ${playerMax} 个道具: ${names.join(', ')}`);
+        } else {
+            addLog(`⚠️ 你的道具已满 (8/8)，无法获得新道具`);
+        }
+
+        // 恶魔获得道具 (标准4个)
+        let enemyMax = Math.min(4, 8 - state.enemyItemCount);
+        if (enemyMax > 0) {
+            let names = [];
+            for (let i=0; i<enemyMax; i++) {
+                let k = Rand(0,4);
+                state.enemyItems[k]++;
+                state.enemyItemCount++;
+                names.push(itemNames[k]);
+            }
+            addLog(`😈 恶魔获得 ${enemyMax} 个道具: ${names.join(', ')}`);
+        }
+
+        refreshUI();
+    }
+
+    // -------------------- 开枪核心 (严格回合规则, 小刀单次) --------------------
+    function resolveShot(targetSelf, isEnemy = false) {
+        if (state.bullets.length === 0) {
+            addLog('⚠️ 没有子弹了，重新装填！');
+            buildGun();
+            return;
+        }
+
+        let bullet = state.bullets.shift(); // 弹出第一发
+        let isLive = (bullet === 1);
+        let total = 0;
+        
+        // 确定当前使用的伤害加成
+        let currentDamage = isEnemy ? state.enemyDamageBoost : state.damageBoost;
+
+        if (!isEnemy) {  // 玩家行动
+            if (!targetSelf) { // 向恶魔开枪
+                if (!isLive) { // 空弹
+                    total = 2000 * currentDamage * (1 + state.liveLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.blankLeft--;
+                    addLog(`🔫 向恶魔开枪: 空弹! 获得 $${total.toFixed(2)}`);
+                } else { // 实弹
+                    total = 5000 * currentDamage * (1 + state.blankLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.liveLeft--;
+                    state.enemyHp -= currentDamage;
+                    addLog(`💥 向恶魔开枪: 实弹! 伤害 ${currentDamage}, 获得 $${total.toFixed(2)}`);
+                }
+                // 向恶魔开枪后：如果有手铐则继续玩家回合，否则结束回合交给恶魔
+                if (state.extraTurn) {
+                    state.extraTurn = false;
+                    addLog('🔗 手铐触发，你可以继续行动');
+                } else {
+                    state.turn = 'enemy';
+                }
+            } else { // 向自己开枪
+                if (!isLive) { // 空弹
+                    total = 2000 * currentDamage * (1 + state.blankLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.blankLeft--;
+                    addLog(`🔫 向自己开枪: 空弹! 获得 $${total.toFixed(2)} (可继续)`);
+                    // 空弹：玩家继续回合
+                } else { // 实弹
+                    total = 5000 * (1 + state.liveLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.liveLeft--;
+                    state.yourHp -= currentDamage;
+                    addLog(`💔 向自己开枪: 实弹! 自伤 ${currentDamage}, 获得 $${total.toFixed(2)}`);
+                    if (state.extraTurn) {
+                        state.extraTurn = false;
+                        addLog('🔗 手铐触发，你可以继续行动');
+                    } else {
+                        state.turn = 'enemy';
+                    }
+                }
+            }
+            // 玩家行动后重置小刀加成
+            state.damageBoost = 1;
+        } else { 
+            // 恶魔行动
+            if (!targetSelf) { // 恶魔向玩家开枪
+                if (!isLive) { // 空弹
+                    total = 2000 * currentDamage * (1 + state.liveLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.blankLeft--;
+                    addLog(`😈 恶魔向你开枪: 空弹! 你获得 $${total.toFixed(2)}`);
+                } else { // 实弹
+                    total = 5000 * currentDamage * (1 + state.blankLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.liveLeft--;
+                    state.yourHp -= currentDamage;
+                    addLog(`😈 恶魔击中你! 伤害 ${currentDamage}, 你获 $${total.toFixed(2)}`);
+                }
+                if (state.enemyHandcuff) {
+                    state.enemyHandcuff = false;
+                    addLog('🔗 恶魔手铐再动');
+                } else {
+                    state.turn = 'player';
+                }
+            } else { // 恶魔向自己开枪
+                if (!isLive) { // 空弹
+                    total = 2000 * (1 + state.liveLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.blankLeft--;
+                    addLog(`😈 恶魔向自己开枪: 空弹! 你获得 $${total.toFixed(2)}`);
+                } else { // 实弹
+                    total = 5000 * (1 + state.blankLeft / (state.liveLeft + state.blankLeft || 1));
+                    state.money += total;
+                    state.liveLeft--;
+                    state.enemyHp -= currentDamage;
+                    addLog(`😈 恶魔自杀: 自伤 ${currentDamage}! 你获得 $${total.toFixed(2)}`);
+                    if (state.enemyHandcuff) {
+                        state.enemyHandcuff = false;
+                    } else {
+                        state.turn = 'player';
+                    }
+                }
+            }
+            // 恶魔行动后重置小刀加成
+            state.enemyDamageBoost = 1;
+        }
+
+        state.enemyKnows = 0;
+
+        refreshUI();
+        if (checkGameOver()) return;
+
+        if (state.bullets.length === 0) {
+            buildGun();
+        }
+
+        if (state.turn === 'enemy' && !checkGameOver()) {
+            setTimeout(() => {
+                enemyDecideAndAct();
+            }, 1000);
+        } else if (state.turn === 'player') {
+            renderPlayerActions();
+        }
+    }
+
+    // -------------------- 玩家道具使用 --------------------
+    function playerUseItem(id) {
+        if (state.yourItems[id] <= 0) { addLog(`没有 ${itemNames[id]}`); return; }
+
+        state.yourItems[id]--;
+        state.yourItemCount--;
+
+        switch (id) {
+            case 0: // 放大镜
+                if (state.bullets.length > 0) {
+                    let next = state.bullets[0] === 1 ? '实弹' : '空弹';
+                    state.money += 2500;
+                    addLog(`🔍 放大镜: 下一发是 ${next}`);
+                } else { addLog('🔍 没有子弹'); }
+                break;
+            case 1: // 手铐
+                if (!state.extraTurn) {
+                    state.extraTurn = true;
+                    addLog('⛓️ 手铐: 本回合可额外行动一次');
+                } else { addLog('⚠️ 已经激活手铐'); }
+                break;
+            case 2: // 小刀
+                if (state.damageBoost === 1) {
+                    state.damageBoost = 2;
+                    state.money += 500;
+                    addLog('🔪 小刀: 下次实弹伤害+1');
+                } else { addLog('⚠️ 小刀已激活'); }
+                break;
+            case 3: // 烟
+                if (state.yourHp < 6) {
+                    state.yourHp++;
+                    state.money += 500;
+                    addLog('🚬 烟: 回复1点生命');
+                } else { addLog('❤️ 生命已满'); }
+                break;
+            case 4: // 饮料
+                if (state.bullets.length > 0) {
+                    let removed = state.bullets.shift();
+                    if (removed === 1) { state.liveLeft--; state.money += 500; addLog('🧃 退出一发实弹'); }
+                    else { state.blankLeft--; addLog('🧃 退出一发空弹'); }
+                } else { addLog('🧃 没有子弹可退'); }
+                break;
+        }
+
+        refreshUI();
+        if (checkGameOver()) return;
+
+        if (state.bullets.length === 0) buildGun();
+        renderPlayerActions();
+    }
+
+    // -------------------- 渲染玩家操作按钮 --------------------
+    function renderPlayerActions() {
+        if (state.turn !== 'player' || checkGameOver()) {
+            actionPanel.innerHTML = '<button class="action-btn" disabled>⏳ 恶魔回合</button>';
+            return;
+        }
+
+        let html = '';
+        html += `<button class="action-btn" id="shootEnemy">🔫 向恶魔开枪</button>`;
+        html += `<button class="action-btn danger-btn" id="shootSelf">🔫 向自己开枪</button>`;
+
+        for (let i=0; i<5; i++) {
+            let disabled = state.yourItems[i] === 0 ? 'disabled' : '';
+            html += `<button class="action-btn" id="useItem${i}" ${disabled}>🎲 ${itemNames[i]}</button>`;
+        }
+
+        actionPanel.innerHTML = html;
+
+        document.getElementById('shootEnemy')?.addEventListener('click', ()=> {
+            resolveShot(false, false);
+        });
+        document.getElementById('shootSelf')?.addEventListener('click', ()=> {
+            resolveShot(true, false);
+        });
+        for (let i=0; i<5; i++) {
+            document.getElementById(`useItem${i}`)?.addEventListener('click', ()=> playerUseItem(i));
+        }
+    }
+
+    // -------------------- 恶魔决策 (无提示语) --------------------
+    function enemyDecideAndAct() {
+        if (state.turn !== 'enemy' || checkGameOver()) return;
+
+        let actions = [];
+
+        actions.push({
+            type: 'shootPlayer',
+            score: evaluateShootPlayer(),
+            exec: ()=> resolveShot(false, true)
+        });
+        actions.push({
+            type: 'shootSelf',
+            score: evaluateShootSelf(),
+            exec: ()=> resolveShot(true, true)
+        });
+        for (let i=0; i<5; i++) {
+            if (state.enemyItems[i] > 0) {
+                actions.push({
+                    type: 'item',
+                    itemId: i,
+                    score: evaluateItem(i),
+                    exec: ()=> enemyUseItem(i)
+                });
+            }
+        }
+
+        actions.sort((a,b) => b.score - a.score);
+        let best = actions[0];
+        best.exec();
+    }
+
+    function evaluateShootPlayer() {
+        if (state.bullets.length === 0) return -1000;
+        let next = state.bullets[0];
+        let score = 0;
+        if (next === 1) {
+            score += 40 + (6 - state.yourHp) * 6;
+            if (state.enemyDamageBoost === 2) score += 20;
+            if (state.enemyHp <= 2) score += 15;
+        } else {
+            score -= 20;
+            if (state.liveLeft > state.blankLeft * 2) score += 10;
+        }
+        return score;
+    }
+
+    function evaluateShootSelf() {
+        if (state.bullets.length === 0) return -1000;
+        let next = state.bullets[0];
+        if (next === 2) {
+            let score = 25;
+            if (state.blankLeft > state.liveLeft) score += 15;
+            return score;
+        } else {
+            let score = -50;
+            if (state.enemyHp > 4) score += 20;
+            if (state.yourHp <= 2) score += 30;
+            return score;
+        }
+    }
+
+    function evaluateItem(id) {
+        switch(id) {
+            case 0:
+                if (state.bullets.length===0) return 0;
+                let base = 20;
+                let diff = Math.abs(state.liveLeft - state.blankLeft);
+                base += (4 - diff) * 5;
+                if (state.enemyHp <= 2) base += 20;
+                return base;
+            case 1:
+                if (state.enemyHandcuff) return -100;
+                let s = 20;
+                if (state.bullets.length>0 && state.bullets[0]===2) s+=25;
+                if (state.yourHp<=3 && state.enemyHp>=3) s+=30;
+                return s;
+            case 2:
+                if (state.enemyDamageBoost === 2) return -100;
+                let knife = 15;
+                if (state.bullets.length>0 && state.bullets[0]===1) knife+=35;
+                knife += state.liveLeft * 4;
+                return knife;
+            case 3:
+                if (state.enemyHp >= 6) return -200;
+                return (6 - state.enemyHp) * 18 + (state.enemyHp<=2 ? 40 : 0);
+            case 4:
+                if (state.bullets.length===0) return 0;
+                let drink = 10;
+                if (state.bullets[0]===1 && state.enemyHp<=3) drink += 50;
+                if (state.bullets[0]===2) drink -= 30;
+                return drink;
+            default: return 0;
+        }
+    }
+
+    function enemyUseItem(id) {
+        if (state.enemyItems[id] <= 0) return;
+        state.enemyItems[id]--;
+        state.enemyItemCount--;
+
+        switch (id) {
+            case 0:
+                if (state.bullets.length>0) {
+                    state.enemyKnows = state.bullets[0];
+                    state.money += 2500;
+                }
+                break;
+            case 1:
+                state.enemyHandcuff = true;
+                break;
+            case 2:
+                if (state.enemyDamageBoost === 1) {
+                    state.enemyDamageBoost = 2;
+                    state.money += 500;
+                }
+                break;
+            case 3:
+                if (state.enemyHp < 6) {
+                    state.enemyHp++;
+                    state.money += 500;
+                }
+                break;
+            case 4:
+                if (state.bullets.length>0) {
+                    let rem = state.bullets.shift();
+                    if (rem === 1) state.liveLeft--;
+                    else state.blankLeft--;
+                    state.money += 500;
+                }
+                break;
+        }
+        refreshUI();
+        if (checkGameOver()) return;
+        if (state.bullets.length === 0) buildGun();
+
+        if (state.enemyHandcuff) {
+            state.enemyHandcuff = false;
+            enemyDecideAndAct();
+        } else {
+            if (state.turn === 'enemy') {
+                enemyDecideAndAct();
+            }
+        }
+    }
+
+    // -------------------- 继续按钮 --------------------
+    btnContinue.addEventListener('click', ()=>{
+        if (checkGameOver()) return;
+        if (state.turn === 'player') {
+            if (!state.extraTurn) {
+                state.turn = 'enemy';
+                refreshUI();
+                setTimeout(() => {
+                    enemyDecideAndAct();
+                }, 1000);
+            } else {
+                addLog('⏳ 你还有手铐额外行动，不能强制结束');
+            }
+        }
+    });
+
+    btnReset.addEventListener('click', ()=>{
+        state = {
+            yourHp: 6, enemyHp: 6, money: 0,
+            yourItems: [0,0,0,0,0], yourItemCount: 0,
+            enemyItems: [0,0,0,0,0], enemyItemCount: 0,
+            bullets: [], liveLeft: 0, blankLeft: 0,
+            turn: 'player', extraTurn: false, damageBoost: 1,
+            enemyKnows: 0, enemyHandcuff: false,
+            enemyDamageBoost: 1
+        };
+        logPanel.innerHTML = '🔄 游戏重置<br>';
+        buildGun();
+        refreshUI();
+        renderPlayerActions();
+    });
+
+    // 初始化
+    buildGun();
+    renderPlayerActions();
+})();
+</script>
+</body>
+</html>
