@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进化 · 深度进化论</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0b0b1f 0%, #1a1f35 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+        
+        .game-container {
+            max-width: 1000px;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: #e2e8f0;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #38bdf8, #c084fc, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+        
+        /* 统计面板 - 更紧凑 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            border-radius: 16px;
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            backdrop-filter: blur(4px);
+            transition: 0.2s;
+        }
+        
+        .stat-card:hover {
+            border-color: #38bdf8;
+            background: rgba(30, 41, 59, 0.8);
+        }
+        
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #f0f9ff;
+            line-height: 1.4;
+        }
+        
+        .stat-sub {
+            font-size: 0.7rem;
+            color: #38bdf8;
+        }
+        
+        /* 主点击区域 - 缩小一点 */
+        .click-evolution {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0 24px;
+        }
+        
+        .click-core {
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle at 30% 30%, #f0f9ff, #0284c7);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            box-shadow: 0 0 40px #38bdf8;
+            border: 3px solid rgba(255,255,255,0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .click-core::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 30%, rgba(0,0,0,0.3));
+        }
+        
+        .click-core:active {
+            transform: scale(0.92);
+            box-shadow: 0 0 60px #a78bfa;
+        }
+        
+        .click-core h2 {
+            font-size: 2.8rem;
+            filter: drop-shadow(0 0 10px white);
+            z-index: 1;
+        }
+        
+        .click-core p {
+            font-size: 1rem;
+            font-weight: 600;
+            background: rgba(0,0,0,0.5);
+            padding: 4px 12px;
+            border-radius: 40px;
+            z-index: 1;
+        }
+        
+        /* 功能区 - 两列布局 */
+        .game-main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 16px 0;
+        }
+        
+        /* 升级面板 - 更小的按钮 */
+        .upgrades-panel, .prestige-panel, .achievement-panel {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 24px;
+            padding: 16px;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-bottom: 1px dashed #334155;
+            padding-bottom: 8px;
+        }
+        
+        .upgrades-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        /* 按钮风格 - 调小 */
+        .upgrade-btn {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 10px 6px;
+            color: #e2e8f0;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        
+        .upgrade-btn:not(:disabled):hover {
+            border-color: #38bdf8;
+            background: #1e293b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(56, 189, 248, 0.2);
+        }
+        
+        .upgrade-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        
+        .upgrade-name {
+            font-weight: 600;
+            color: #f0f9ff;
+            font-size: 0.9rem;
+        }
+        
+        .upgrade-cost {
+            color: #fcd34d;
+            font-size: 0.8rem;
+            margin: 2px 0;
+        }
+        
+        .upgrade-level {
+            color: #94a3b8;
+            font-size: 0.7rem;
+        }
+        
+        .upgrade-effect {
+            color: #4ade80;
+            font-size: 0.7rem;
+        }
+        
+        /* 隐藏元素 - 未解锁时不可见 */
+        .hidden-feature {
+            display: none !important;
+        }
+        
+        /* 存档区 - 更紧凑 */
+        .save-section {
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 20px;
+            padding: 16px;
+        }
+        
+        .save-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        
+        .save-btn {
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 30px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: 0.2s;
+            flex: 1 0 auto;
+        }
+        
+        .save-btn:hover {
+            background: #334155;
+            border-color: #38bdf8;
+            color: white;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 70px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            color: #4ade80;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            resize: vertical;
+        }
+        
+        .feature-tag {
+            display: inline-block;
+            background: #2d1b3c;
+            color: #c084fc;
+            font-size: 0.6rem;
+            padding: 2px 8px;
+            border-radius: 40px;
+            margin-left: 8px;
+            border: 1px solid #a855f7;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 16px;
+            color: #64748b;
+            font-size: 0.8rem;
+        }
+        
+        .footer a {
+            color: #38bdf8;
+            text-decoration: none;
+        }
+        
+        @media (max-width: 700px) {
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .game-main {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <h1>⚡ 深 度 进 化 ⚡</h1>
+    
+    <!-- 精简统计 -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">进化能量</div>
+            <div class="stat-value" id="energy">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">点击/秒</div>
+            <div class="stat-value" id="clickPower">1</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">自动/秒</div>
+            <div class="stat-value" id="perSecond">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">进化等级</div>
+            <div class="stat-value" id="evoLevel">1</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">总进化</div>
+            <div class="stat-value" id="totalEvo">0</div>
+            <div class="stat-sub" id="nextPrestige">下一级: ???</div>
+        </div>
+    </div>
+    
+    <!-- 点击核心 -->
+    <div class="click-evolution">
+        <div class="click-core" id="clickArea">
+            <h2>🧬</h2>
+            <p>点击进化</p>
+        </div>
+    </div>
+    
+    <!-- 主要游戏区: 左侧基础升级, 右侧高级功能(解锁) -->
+    <div class="game-main">
+        <!-- 左侧: 基础升级 (始终可见) -->
+        <div class="upgrades-panel">
+            <div class="panel-title">🔬 基础进化</div>
+            <div class="upgrades-grid">
+                <!-- 基因突变 -->
+                <button class="upgrade-btn" id="buyMutation">
+                    <span class="upgrade-name">基因突变</span>
+                    <span class="upgrade-cost" id="mutationCost">🔹 10</span>
+                    <span class="upgrade-level" id="mutationLevel">Lv.0</span>
+                    <span class="upgrade-effect">+1 点击</span>
+                </button>
+                
+                <!-- DNA复制 -->
+                <button class="upgrade-btn" id="buyReplication">
+                    <span class="upgrade-name">DNA复制</span>
+                    <span class="upgrade-cost" id="replicationCost">🔹 50</span>
+                    <span class="upgrade-level" id="replicationLevel">Lv.0</span>
+                    <span class="upgrade-effect">+0.5/秒</span>
+                </button>
+                
+                <!-- 能量吸收 (现在有额外作用) -->
+                <button class="upgrade-btn" id="buyAbsorption">
+                    <span class="upgrade-name">能量吸收</span>
+                    <span class="upgrade-cost" id="absorptionCost">🔹 200</span>
+                    <span class="upgrade-level" id="absorptionLevel">Lv.0</span>
+                    <span class="upgrade-effect">上限+500</span>
+                </button>
+                
+                <!-- 线粒体进化 (进化等级5解锁) -->
+                <button class="upgrade-btn hidden-feature" id="buyMitochondria">
+                    <span class="upgrade-name">⚡ 线粒体</span>
+                    <span class="upgrade-cost" id="mitoCost">🔹 1000</span>
+                    <span class="upgrade-level" id="mitoLevel">Lv.0</span>
+                    <span class="upgrade-effect">点击×1.1 乘区</span>
+                </button>
+            </div>
+            <div style="margin-top: 10px; color: #94a3b8; font-size:0.8rem;" id="basicHint"></div>
+        </div>
+        
+        <!-- 右侧: 高级功能 (随等级解锁) -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <!-- 转生/进化跃迁 (等级10解锁) -->
+            <div class="prestige-panel hidden-feature" id="prestigePanel">
+                <div class="panel-title">🌀 进化跃迁 <span class="feature-tag">等级10解锁</span></div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button class="save-btn" id="prestigeBtn" style="flex:2;">✨ 跃迁 (等级≥10)</button>
+                    <span style="font-size:0.8rem;" id="prestigeBonus">跃迁奖励: 0%</span>
+                </div>
+                <p style="font-size:0.75rem; margin-top:6px; color:#94a3b8;">重置游戏, 但每级跃迁使所有收益+10%</p>
+            </div>
+            
+            <!-- 成就/基因库 (等级15解锁) -->
+            <div class="achievement-panel hidden-feature" id="achievementPanel">
+                <div class="panel-title">🏆 基因库 <span class="feature-tag">等级15解锁</span></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                    <button class="save-btn" id="achieve1">🔮 收集: 1000能量</button>
+                    <button class="save-btn" id="achieve2">⚙️ 10级点击</button>
+                </div>
+                <div style="font-size:0.75rem; margin-top:6px;" id="achieveProgress"></div>
+            </div>
+            
+            <!-- 暗物质进化 (等级25解锁) -->
+            <div class="hidden-feature" id="darkPanel" style="background: #2d1b3c; border-radius:20px; padding:16px; border:1px solid #a855f7;">
+                <div class="panel-title" style="color: #d8b4fe;">🌑 暗物质 <span class="feature-tag">等级25解锁</span></div>
+                <div style="display: flex; gap: 6px;">
+                    <button class="save-btn" id="buyDark1">产生暗能量</button>
+                    <button class="save-btn" id="buyDark2">暗物质转化</button>
+                </div>
+                <div style="margin-top:6px; font-size:0.8rem;">暗能量: <span id="darkMatter">0</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 存档区 (永远可见) -->
+    <div class="save-section">
+        <div class="save-buttons">
+            <button class="save-btn" id="saveGame">💾 本地保存</button>
+            <button class="save-btn" id="exportGame">📤 导出存档</button>
+            <button class="save-btn" id="importGame">📥 导入</button>
+            <button class="save-btn" id="resetGame">🔄 重置</button>
+        </div>
+        <textarea id="saveData" placeholder="加密存档将显示在这里..." readonly></textarea>
+    </div>
+    
+    <div class="footer">
+        <a href="/">返回首页</a> · 深度进化 v2.1 · 功能随等级解锁
+    </div>
+</div>
+
+<script>
+// ================= 游戏状态 =================
+let gameState = {
+    energy: 0,
+    clickPower: 1,
+    totalEvolved: 0,       // 总获得能量(用于跃迁)
+    
+    // 基础升级
+    mutation: { level: 0, cost: 10, effect: 1 },
+    replication: { level: 0, cost: 50, effect: 0.5 },
+    absorption: { level: 0, cost: 200, effect: 5 },   // 每级+500上限
+    
+    // 高级1: 线粒体 (等级5解锁)
+    mitochondria: { level: 0, cost: 1000, effect: 0.1 }, // 点击倍率 +10%
+    
+    // 跃迁系统 (等级10解锁)
+    prestige: { level: 0, bonus: 0 },   // 每级+10%收益
+    
+    // 成就 (等级15解锁)
+    achievements: {
+        energy1000: false,
+        clickLevel10: false
+    },
+    
+    // 暗物质 (等级25解锁)
+    darkMatter: 0,
+    darkUpgrade1: 0,
+    darkUpgrade2: 0,
+    
+    // 游戏版本
+    version: 2
+};
+
+// 加密密钥
+const ENCRYPT_KEY = "deep_evolution_2025";
+
+// DOM 快捷方式
+const els = {
+    energy: document.getElementById('energy'),
+    clickPower: document.getElementById('clickPower'),
+    perSecond: document.getElementById('perSecond'),
+    evoLevel: document.getElementById('evoLevel'),
+    totalEvo: document.getElementById('totalEvo'),
+    nextPrestige: document.getElementById('nextPrestige'),
+    
+    mutationCost: document.getElementById('mutationCost'),
+    mutationLevel: document.getElementById('mutationLevel'),
+    replicationCost: document.getElementById('replicationCost'),
+    replicationLevel: document.getElementById('replicationLevel'),
+    absorptionCost: document.getElementById('absorptionCost'),
+    absorptionLevel: document.getElementById('absorptionLevel'),
+    mitoCost: document.getElementById('mitoCost'),
+    mitoLevel: document.getElementById('mitoLevel'),
+    
+    basicHint: document.getElementById('basicHint'),
+    
+    prestigePanel: document.getElementById('prestigePanel'),
+    achievementPanel: document.getElementById('achievementPanel'),
+    darkPanel: document.getElementById('darkPanel'),
+    
+    prestigeBonus: document.getElementById('prestigeBonus'),
+    achieveProgress: document.getElementById('achieveProgress'),
+    darkMatter: document.getElementById('darkMatter'),
+    
+    saveData: document.getElementById('saveData')
+};
+
+// 初始化确保所有DOM元素存在
+function initElements() {
+    // 检查并修复可能缺失的元素
+    if (!els.mitoCost || !els.mitoLevel) {
+        console.warn('线粒体元素未找到，将在更新时重新获取');
+    }
+}
+
+// 解锁检查 (基于进化等级)
+function getEvoLevel() {
+    return 1 + (gameState.mutation?.level || 0) + (gameState.replication?.level || 0) + 
+           (gameState.absorption?.level || 0) + (gameState.mitochondria?.level || 0);
+}
+
+function updateUnlocks() {
+    const level = getEvoLevel();
+    
+    // 重新获取线粒体按钮（防止动态添加问题）
+    const mitoBtn = document.getElementById('buyMitochondria');
+    const prestigePanel = document.getElementById('prestigePanel');
+    const achievementPanel = document.getElementById('achievementPanel');
+    const darkPanel = document.getElementById('darkPanel');
+    
+    // 线粒体 (等级5)
+    if (level >= 5) {
+        if (mitoBtn) mitoBtn.classList.remove('hidden-feature');
+    } else {
+        if (mitoBtn) mitoBtn.classList.add('hidden-feature');
+    }
+    
+    // 跃迁 (等级10)
+    if (level >= 10) {
+        if (prestigePanel) prestigePanel.classList.remove('hidden-feature');
+    } else {
+        if (prestigePanel) prestigePanel.classList.add('hidden-feature');
+    }
+    
+    // 成就 (等级15)
+    if (level >= 15) {
+        if (achievementPanel) achievementPanel.classList.remove('hidden-feature');
+    } else {
+        if (achievementPanel) achievementPanel.classList.add('hidden-feature');
+    }
+    
+    // 暗物质 (等级25)
+    if (level >= 25) {
+        if (darkPanel) darkPanel.classList.remove('hidden-feature');
+    } else {
+        if (darkPanel) darkPanel.classList.add('hidden-feature');
+    }
+    
+    // 提示信息
+    if (level < 5) {
+        els.basicHint.innerText = `⭐ 进化等级5解锁线粒体 (当前${level}/5)`;
+    } else if (level < 10) {
+        els.basicHint.innerText = `✨ 进化等级10解锁跃迁系统 (当前${level}/10)`;
+    } else if (level < 15) {
+        els.basicHint.innerText = `🏆 进化等级15解锁基因库 (当前${level}/15)`;
+    } else if (level < 25) {
+        els.basicHint.innerText = `🌑 进化等级25解锁暗物质 (当前${level}/25)`;
+    } else {
+        els.basicHint.innerText = `🚀 已解锁所有功能! 继续进化!`;
+    }
+}
+
+// 更新显示
+function updateDisplay() {
+    const level = getEvoLevel();
+    const clickMultiplier = 1 + (gameState.prestige?.level || 0) * 0.1 + (gameState.mitochondria?.level || 0) * 0.1;
+    const effectiveClick = Math.floor(gameState.clickPower * clickMultiplier * 100) / 100;
+    
+    // 能量上限
+    const maxEnergy = 1000 + (gameState.absorption?.level || 0) * 500;
+    if (gameState.energy > maxEnergy) gameState.energy = maxEnergy;
+    
+    // 安全更新DOM
+    if (els.energy) els.energy.textContent = Math.floor(gameState.energy);
+    if (els.clickPower) els.clickPower.textContent = effectiveClick.toFixed(1);
+    
+    const perSecond = ((gameState.replication?.level || 0) * 0.5) * (1 + (gameState.prestige?.level || 0) * 0.1);
+    if (els.perSecond) els.perSecond.textContent = perSecond.toFixed(2);
+    
+    if (els.evoLevel) els.evoLevel.textContent = level;
+    if (els.totalEvo) els.totalEvo.textContent = Math.floor(gameState.totalEvolved);
+    
+    // 跃迁提示
+    if (level >= 10) {
+        if (els.nextPrestige) els.nextPrestige.innerText = `跃迁+${(gameState.prestige?.level || 0)*10}%`;
+    } else {
+        if (els.nextPrestige) els.nextPrestige.innerText = `等级10解锁`;
+    }
+    if (els.prestigeBonus) els.prestigeBonus.innerText = `奖励: +${(gameState.prestige?.level || 0)*10}%`;
+    
+    // 基础升级显示
+    if (els.mutationCost) els.mutationCost.innerText = `🔹 ${gameState.mutation?.cost || 10}`;
+    if (els.mutationLevel) els.mutationLevel.innerText = `Lv.${gameState.mutation?.level || 0}`;
+    if (els.replicationCost) els.replicationCost.innerText = `🔹 ${gameState.replication?.cost || 50}`;
+    if (els.replicationLevel) els.replicationLevel.innerText = `Lv.${gameState.replication?.level || 0}`;
+    if (els.absorptionCost) els.absorptionCost.innerText = `🔹 ${gameState.absorption?.cost || 200}`;
+    if (els.absorptionLevel) els.absorptionLevel.innerText = `Lv.${gameState.absorption?.level || 0}`;
+    
+    // 线粒体显示
+    if (els.mitoCost && gameState.mitochondria) {
+        els.mitoCost.innerText = `🔹 ${gameState.mitochondria.cost}`;
+    }
+    if (els.mitoLevel && gameState.mitochondria) {
+        els.mitoLevel.innerText = `Lv.${gameState.mitochondria.level}`;
+    }
+    
+    // 成就进度
+    let achieveCount = (gameState.achievements?.energy1000 ? 1 : 0) + (gameState.achievements?.clickLevel10 ? 1 : 0);
+    if (els.achieveProgress) els.achieveProgress.innerText = `成就: ${achieveCount}/2`;
+    
+    // 暗物质
+    if (els.darkMatter) els.darkMatter.innerText = gameState.darkMatter || 0;
+    
+    // 按钮禁用
+    const mutationBtn = document.getElementById('buyMutation');
+    if (mutationBtn) mutationBtn.disabled = gameState.energy < (gameState.mutation?.cost || 10);
+    
+    const replicationBtn = document.getElementById('buyReplication');
+    if (replicationBtn) replicationBtn.disabled = gameState.energy < (gameState.replication?.cost || 50);
+    
+    const absorptionBtn = document.getElementById('buyAbsorption');
+    if (absorptionBtn) absorptionBtn.disabled = gameState.energy < (gameState.absorption?.cost || 200);
+    
+    const mitoBtn = document.getElementById('buyMitochondria');
+    if (mitoBtn && gameState.mitochondria) {
+        mitoBtn.disabled = gameState.energy < gameState.mitochondria.cost;
+    }
+    
+    // 成就按钮
+    const achieve1Btn = document.getElementById('achieve1');
+    const achieve2Btn = document.getElementById('achieve2');
+    if (achieve1Btn) achieve1Btn.disabled = gameState.achievements?.energy1000;
+    if (achieve2Btn) achieve2Btn.disabled = gameState.achievements?.clickLevel10;
+    
+    updateUnlocks();
+}
+
+// ========== 点击事件 ==========
+document.getElementById('clickArea').addEventListener('click', () => {
+    const multiplier = 1 + (gameState.prestige?.level || 0) * 0.1 + (gameState.mitochondria?.level || 0) * 0.1;
+    let gain = gameState.clickPower * multiplier;
+    gameState.energy += gain;
+    gameState.totalEvolved = (gameState.totalEvolved || 0) + gain;
+    
+    // 成就检查
+    if (!gameState.achievements?.energy1000 && gameState.totalEvolved >= 1000) {
+        gameState.achievements = gameState.achievements || {};
+        gameState.achievements.energy1000 = true;
+        alert('🏆 成就解锁: 收集1000能量!');
+    }
+    if (!gameState.achievements?.clickLevel10 && (gameState.mutation?.level || 0) >= 10) {
+        gameState.achievements = gameState.achievements || {};
+        gameState.achievements.clickLevel10 = true;
+        alert('🏆 成就解锁: 点击等级10!');
+    }
+    
+    updateDisplay();
+});
+
+// 基础升级购买
+document.getElementById('buyMutation').addEventListener('click', () => {
+    if (gameState.energy >= gameState.mutation.cost) {
+        gameState.energy -= gameState.mutation.cost;
+        gameState.mutation.level++;
+        gameState.clickPower += gameState.mutation.effect;
+        gameState.mutation.cost = Math.floor(gameState.mutation.cost * 1.5);
+        updateDisplay();
+    }
+});
+
+document.getElementById('buyReplication').addEventListener('click', () => {
+    if (gameState.energy >= gameState.replication.cost) {
+        gameState.energy -= gameState.replication.cost;
+        gameState.replication.level++;
+        gameState.replication.cost = Math.floor(gameState.replication.cost * 1.6);
+        updateDisplay();
+    }
+});
+
+document.getElementById('buyAbsorption').addEventListener('click', () => {
+    if (gameState.energy >= gameState.absorption.cost) {
+        gameState.energy -= gameState.absorption.cost;
+        gameState.absorption.level++;
+        gameState.absorption.cost = Math.floor(gameState.absorption.cost * 1.7);
+        updateDisplay();
+    }
+});
+
+// 线粒体
+document.getElementById('buyMitochondria').addEventListener('click', () => {
+    if (gameState.energy >= gameState.mitochondria.cost) {
+        gameState.energy -= gameState.mitochondria.cost;
+        gameState.mitochondria.level++;
+        gameState.mitochondria.cost = Math.floor(gameState.mitochondria.cost * 2);
+        updateDisplay();
+    }
+});
+
+// 跃迁
+document.getElementById('prestigeBtn').addEventListener('click', () => {
+    if (getEvoLevel() >= 10) {
+        if (confirm('进化跃迁将重置所有升级, 但获得永久10%收益加成。确定吗？')) {
+            gameState.prestige.level = (gameState.prestige?.level || 0) + 1;
+            // 重置基础
+            gameState.energy = 0;
+            gameState.clickPower = 1;
+            gameState.mutation = { level: 0, cost: 10, effect: 1 };
+            gameState.replication = { level: 0, cost: 50, effect: 0.5 };
+            gameState.absorption = { level: 0, cost: 200, effect: 5 };
+            gameState.mitochondria = { level: 0, cost: 1000, effect: 0.1 };
+            gameState.darkMatter = 0;
+            gameState.darkUpgrade1 = 0;
+            gameState.darkUpgrade2 = 0;
+            // 保留成就
+            updateDisplay();
+            alert(`跃迁成功! 当前收益+${gameState.prestige.level*10}%`);
+        }
+    }
+});
+
+// 成就按钮
+document.getElementById('achieve1').addEventListener('click', () => {
+    if (!gameState.achievements?.energy1000 && gameState.totalEvolved >= 1000) {
+        gameState.achievements = gameState.achievements || {};
+        gameState.achievements.energy1000 = true;
+        gameState.energy += 500;
+        alert('成就奖励: 500能量');
+        updateDisplay();
+    }
+});
+
+document.getElementById('achieve2').addEventListener('click', () => {
+    if (!gameState.achievements?.clickLevel10 && (gameState.mutation?.level || 0) >= 10) {
+        gameState.achievements = gameState.achievements || {};
+        gameState.achievements.clickLevel10 = true;
+        gameState.clickPower += 5;
+        alert('成就奖励: 永久+5点击');
+        updateDisplay();
+    }
+});
+
+// 暗物质
+document.getElementById('buyDark1').addEventListener('click', () => {
+    if (gameState.energy >= 5000) {
+        gameState.energy -= 5000;
+        gameState.darkMatter = (gameState.darkMatter || 0) + 1;
+        updateDisplay();
+    }
+});
+
+document.getElementById('buyDark2').addEventListener('click', () => {
+    if (gameState.darkMatter >= 1) {
+        gameState.darkMatter -= 1;
+        gameState.clickPower += 10;
+        updateDisplay();
+    }
+});
+
+// 每秒自动收益
+setInterval(() => {
+    let base = (gameState.replication?.level || 0) * 0.5;
+    let bonus = 1 + (gameState.prestige?.level || 0) * 0.1;
+    let gain = base * bonus;
+    gameState.energy += gain;
+    gameState.totalEvolved = (gameState.totalEvolved || 0) + gain;
+    updateDisplay();
+}, 1000);
+
+// ========== 存档加密 ==========
+function encrypt(data) {
+    try {
+        let str = JSON.stringify(data) + ENCRYPT_KEY;
+        return btoa(encodeURIComponent(str).split('').reverse().join(''));
+    } catch (e) {
+        console.error('加密失败:', e);
+        return '';
+    }
+}
+
+function decrypt(enc) {
+    try {
+        let reversed = atob(enc).split('').reverse().join('');
+        let raw = decodeURIComponent(reversed);
+        if (!raw.endsWith(ENCRYPT_KEY)) throw new Error('无效存档');
+        return JSON.parse(raw.slice(0, -ENCRYPT_KEY.length));
+    } catch (e) {
+        alert('存档解密失败: ' + e.message);
+        return null;
+    }
+}
+
+document.getElementById('saveGame').addEventListener('click', () => {
+    try {
+        localStorage.setItem('deepEvolve', encrypt(gameState));
+        alert('✅ 已保存到浏览器');
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    }
+});
+
+document.getElementById('exportGame').addEventListener('click', () => {
+    try {
+        let enc = encrypt(gameState);
+        els.saveData.value = enc;
+        els.saveData.select();
+        document.execCommand('copy');
+        alert('✅ 存档已复制到剪贴板');
+    } catch (e) {
+        alert('导出失败: ' + e.message);
+    }
+});
+
+document.getElementById('importGame').addEventListener('click', () => {
+    let data = els.saveData.value.trim();
+    if (!data) return alert('请输入存档代码');
+    let decoded = decrypt(data);
+    if (decoded) {
+        gameState = decoded;
+        updateDisplay();
+        alert('✅ 导入成功');
+    }
+});
+
+document.getElementById('resetGame').addEventListener('click', () => {
+    if (confirm('确定重置游戏？所有进度将丢失！')) {
+        localStorage.removeItem('deepEvolve');
+        location.reload();
+    }
+});
+
+// 初始化
+window.onload = () => {
+    initElements();
+    let saved = localStorage.getItem('deepEvolve');
+    if (saved) {
+        let dec = decrypt(saved);
+        if (dec) {
+            gameState = dec;
+            // 确保所有必要字段存在
+            gameState.mitochondria = gameState.mitochondria || { level: 0, cost: 1000, effect: 0.1 };
+            gameState.prestige = gameState.prestige || { level: 0, bonus: 0 };
+            gameState.achievements = gameState.achievements || { energy1000: false, clickLevel10: false };
+            gameState.darkMatter = gameState.darkMatter || 0;
+            gameState.totalEvolved = gameState.totalEvolved || 0;
+        }
+    }
+    updateDisplay();
+};
+</script>
+</body>
+</html>
