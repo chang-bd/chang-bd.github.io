@@ -116,9 +116,50 @@
             .info-panel { flex-direction: column; align-items: stretch; }
             .turn-indicator, .status { text-align: center; }
         }
+        .how-to-play-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: #f5e8d0;
+    color: #2d1f0c;
+    border: 3px solid #6d3f1f;
+    border-radius: 40px;
+    padding: 10px 24px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 0 #3d2614, 0 6px 20px rgba(0,0,0,0.4);
+    transition: 0.1s ease;
+    letter-spacing: 1px;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+}
+.how-to-play-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 #3d2614, 0 8px 25px rgba(0,0,0,0.4);
+    background: #faf0e0;
+}
+.how-to-play-btn:active {
+    transform: translateY(6px);
+    box-shadow: 0 2px 0 #3d2614;
+}
+.how-to-play-btn .icon {
+    margin-right: 6px;
+}
+@media (max-width: 660px) {
+    .how-to-play-btn {
+        top: 10px;
+        right: 10px;
+        padding: 6px 14px;
+        font-size: 0.8rem;
+    }
+}
     </style>
 </head>
 <body>
+<button class="how-to-play-btn" id="howToPlayBtn">
+    <span class="icon">📖</span> 怎么玩
+</button>
 <div class="container">
     <canvas id="boardCanvas" width="620" height="620"></canvas>
     <div class="info-panel">
@@ -785,6 +826,11 @@
 
         resetGame();
     })();
+    document.getElementById('howToPlayBtn').addEventListener('click', function() {
+    // ===== 请将下面的网址替换为您自己的网址 =====
+    window.open('https://chang-bd.github.io/game/gcxq/introducton/', '_blank');
+    // ============================================
+});
 </script>
 </body>
 </html>
