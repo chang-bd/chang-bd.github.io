@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>攻城象棋 · 官方版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            background: #2e5a3a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+        }
+        .container {
+            background: #d4b48c;
+            padding: 30px 30px 20px;
+            border-radius: 48px;
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.7);
+            border: 8px solid #b88a5e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+            background: #f0d5b0;
+            border-radius: 24px;
+            box-shadow: inset 0 0 0 2px #6b4f2e, 0 10px 20px rgba(0,0,0,0.5);
+            width: 620px;
+            height: 620px;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .info-panel {
+            margin-top: 18px;
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            color: #2d1f0c;
+            font-weight: bold;
+            font-size: 1.0rem;
+            background: #c9a87c;
+            padding: 10px 20px;
+            border-radius: 60px;
+            border: 3px solid #8f6e44;
+            box-shadow: inset 0 2px 4px rgba(255,255,240,0.6);
+            gap: 6px;
+        }
+        .turn-indicator {
+            background: #3c2816;
+            color: #f0e0c0;
+            padding: 6px 18px;
+            border-radius: 40px;
+            letter-spacing: 1px;
+            box-shadow: inset 0 -2px 0 #5f4228;
+            font-size: 0.95rem;
+        }
+        .status {
+            background: #1f2e1a;
+            color: #eedbba;
+            padding: 6px 16px;
+            border-radius: 40px;
+            text-align: center;
+            box-shadow: inset 0 -2px 0 #3f5a33;
+            font-size: 0.9rem;
+            flex: 1;
+            min-width: 100px;
+        }
+        .btn-reset {
+            background: #6d3f1f;
+            border: none;
+            color: #f5e7d3;
+            font-weight: bold;
+            font-size: 0.95rem;
+            padding: 6px 22px;
+            border-radius: 40px;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #3d2614, 0 3px 10px rgba(0,0,0,0.3);
+            transition: 0.07s;
+            letter-spacing: 1px;
+        }
+        .btn-reset:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0 #3d2614;
+        }
+        .btn-reset:hover {
+            background: #8a552b;
+        }
+        .rule-hint {
+            color: #3d2614;
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            background: #e8d5b8;
+            border-radius: 20px;
+            opacity: 0.85;
+        }
+        .stats {
+            font-size: 0.8rem;
+            color: #2d1f0c;
+            background: rgba(255,255,240,0.3);
+            padding: 2px 12px;
+            border-radius: 16px;
+        }
+        @media (max-width: 660px) {
+            canvas { width: 90vw; height: 90vw; }
+            .container { padding: 16px; }
+            .info-panel { flex-direction: column; align-items: stretch; }
+            .turn-indicator, .status { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <canvas id="boardCanvas" width="620" height="620"></canvas>
+    <div class="info-panel">
+        <span class="turn-indicator" id="turnIndicator">红方走</span>
+        <span class="status" id="statusDisplay">对弈中</span>
+        <span class="stats" id="statsDisplay">俥3 马4</span>
+        <button class="btn-reset" id="resetBtn">🔄 新局</button>
+        <span class="rule-hint">⚔️ 攻城军 · 无帅版</span>
+    </div>
+</div>
+<script>
+    (function() {
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const turnIndicator = document.getElementById('turnIndicator');
+        const statusDisplay = document.getElementById('statusDisplay');
+        const statsDisplay = document.getElementById('statsDisplay');
+
+        // ----- 常量 -----
+        const SIZE = 620;
+        const CELL_SIZE = 60;
+        const MARGIN = 40;
+        const RADIUS = CELL_SIZE * 0.42;
+        const RED = 'red';
+        const BLACK = 'black';
+
+        // ----- 棋盘状态 -----
+        let board = [];
+        let currentTurn = RED;
+        let gameOver = false;
+        let gameResult = '';
+        let selected = null;
+        let legalMovesForSelected = [];
+        let moveHistory = [];
+        let moveCount = 0;
+
+        // ----- 坐标转换 -----
+        function getX(c) { return MARGIN + c * CELL_SIZE; }
+        function getY(r) { return MARGIN + r * CELL_SIZE; }
+        function inBoard(r, c) { return r >= 0 && r < 10 && c >= 0 && c < 9; }
+
+        // ----- 初始布局 (严格按照规则书) -----
+        function initBoard() {
+            const b = Array(10).fill().map(() => Array(9).fill(null));
+
+            // 红方：行10(索引9) 俥马空空俥空空马俥
+            // 行9(索引8) 空空马空空空马空空
+            // 行8(索引7) 砲空空空砲空空空砲
+            // 行7(索引6) 兵空兵空兵空兵空兵
+            const redPieces = [
+                // 行10 (row 9)
+                { type: '俥', row: 9, col: 0 }, { type: '马', row: 9, col: 1 },
+                { type: '俥', row: 9, col: 4 }, { type: '马', row: 9, col: 7 },
+                { type: '俥', row: 9, col: 8 },
+                // 行9 (row 8)
+                { type: '马', row: 8, col: 2 }, { type: '马', row: 8, col: 6 },
+                // 行8 (row 7)
+                { type: '砲', row: 7, col: 0 }, { type: '砲', row: 7, col: 4 }, { type: '砲', row: 7, col: 8 },
+                // 行7 (row 6)
+                { type: '兵', row: 6, col: 0 }, { type: '兵', row: 6, col: 2 },
+                { type: '兵', row: 6, col: 4 }, { type: '兵', row: 6, col: 6 }, { type: '兵', row: 6, col: 8 }
+            ];
+            redPieces.forEach(p => {
+                b[p.row][p.col] = { type: p.type, color: RED, moved: false };
+            });
+
+            // 黑方：传统布局
+            const blackPieces = [
+                { type: '車', row: 0, col: 0 }, { type: '马', row: 0, col: 1 },
+                { type: '象', row: 0, col: 2 }, { type: '士', row: 0, col: 3 },
+                { type: '将', row: 0, col: 4 }, { type: '士', row: 0, col: 5 },
+                { type: '象', row: 0, col: 6 }, { type: '马', row: 0, col: 7 },
+                { type: '車', row: 0, col: 8 },
+                { type: '砲', row: 2, col: 1 }, { type: '砲', row: 2, col: 7 },
+                { type: '卒', row: 3, col: 0 }, { type: '卒', row: 3, col: 2 },
+                { type: '卒', row: 3, col: 4 }, { type: '卒', row: 3, col: 6 }, { type: '卒', row: 3, col: 8 }
+            ];
+            blackPieces.forEach(p => {
+                b[p.row][p.col] = { type: p.type, color: BLACK, moved: false };
+            });
+
+            return b;
+        }
+
+        // ----- 工具函数 -----
+        function cloneBoard(b) {
+            return b.map(row => row.map(cell => cell ? { ...cell } : null));
+        }
+
+        function findKing(b, color) {
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const p = b[r][c];
+                    if (p && p.color === color && p.type === '将') return { row: r, col: c };
+                }
+            }
+            return null;
+        }
+
+        function countRedCheAndMa(b) {
+            let che = 0, ma = 0;
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const p = b[r][c];
+                    if (p && p.color === RED) {
+                        if (p.type === '俥') che++;
+                        else if (p.type === '马') ma++;
+                    }
+                }
+            }
+            return { che, ma };
+        }
+
+        // ----- 判断红方前线棋子数量 (黑方半场: row 0-4) -----
+        function countRedFrontline(b) {
+            let count = 0;
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const p = b[r][c];
+                    if (p && p.color === RED && p.type !== '砲') count++;
+                }
+            }
+            return count;
+        }
+
+        // ----- 检查黑方是否被将死或困毙 -----
+        function checkBlackDefeated(b) {
+            const king = findKing(b, BLACK);
+            if (!king) return true; // 黑将被吃
+
+            // 获取黑方所有合法走法
+            const allMoves = getAllLegalMoves(b, BLACK);
+            if (allMoves.length === 0) return true; // 困毙
+
+            return false;
+        }
+
+        // ----- 检查红方胜利条件 -----
+        function checkRedWin(b) {
+            return checkBlackDefeated(b);
+        }
+
+        // ----- 检查黑方胜利条件 -----
+        function checkBlackWin(b) {
+            const { che, ma } = countRedCheAndMa(b);
+            // 吃光3俥
+            if (che === 0) return true;
+            // 吃光4马
+            if (ma === 0) return true;
+            // 吃2俥+3马 (即剩余 <= 1俥 且 <= 1马)
+            if (che <= 1 && ma <= 1) return true;
+            return false;
+        }
+
+        // ----- 判断棋子是否受城墙保护（未动过的卒）-----
+        function isProtectedPawn(b, row, col) {
+            const p = b[row][col];
+            if (!p || p.color !== BLACK || p.type !== '卒') return false;
+            return p.moved === false;
+        }
+
+        // ----- 红方能否吃这个卒 (俥马兵不能吃未动卒，砲可以) -----
+        function canRedEatPawn(b, row, col, attackerType) {
+            if (!isProtectedPawn(b, row, col)) return true;
+            // 只有砲可以吃未动卒
+            return attackerType === '砲';
+        }
+
+        // ----- 生成走法 (含所有特殊规则) -----
+        function generateRawMoves(b, row, col) {
+            const piece = b[row][col];
+            if (!piece) return [];
+            const { type, color } = piece;
+            const moves = [];
+            const enemy = color === RED ? BLACK : RED;
+            const isRed = color === RED;
+
+            const canPlace = (r, c) => {
+                if (!inBoard(r, c)) return false;
+                const target = b[r][c];
+                if (target && target.color === color) return false;
+                return true;
+            };
+
+            const addMove = (r, c) => {
+                if (canPlace(r, c)) {
+                    // 红方吃卒限制
+                    if (isRed && b[r][c] && b[r][c].color === BLACK && b[r][c].type === '卒') {
+                        if (!canRedEatPawn(b, r, c, type)) return;
+                    }
+                    moves.push({ fromRow: row, fromCol: col, toRow: r, toCol: c });
+                }
+            };
+
+            switch (type) {
+                case '将': {
+                    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                    for (let d of dirs) {
+                        const nr = row + d[0], nc = col + d[1];
+                        if (nc >= 3 && nc <= 5 && nr >= 0 && nr <= 2) addMove(nr, nc);
+                    }
+                    break;
+                }
+                case '士': {
+                    const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+                    for (let d of dirs) {
+                        const nr = row + d[0], nc = col + d[1];
+                        if (nc >= 3 && nc <= 5 && nr >= 0 && nr <= 2) addMove(nr, nc);
+                    }
+                    break;
+                }
+                case '象': {
+                    const dirs = [[-2, -2], [-2, 2], [2, -2], [2, 2]];
+                    for (let d of dirs) {
+                        const nr = row + d[0], nc = col + d[1];
+                        const br = row + d[0] / 2, bc = col + d[1] / 2;
+                        if (!inBoard(nr, nc)) continue;
+                        if (b[br][bc]) continue;
+                        if (color === RED && nr < 5) continue;
+                        if (color === BLACK && nr > 4) continue;
+                        addMove(nr, nc);
+                    }
+                    break;
+                }
+                case '马': {
+                    const jumps = [
+                        [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                        [1, -2], [1, 2], [2, -1], [2, 1]
+                    ];
+                    const legs = [
+                        [-1, 0], [-1, 0], [0, -1], [0, -1],
+                        [0, -1], [0, -1], [1, 0], [1, 0]
+                    ];
+                    for (let i = 0; i < jumps.length; i++) {
+                        const nr = row + jumps[i][0], nc = col + jumps[i][1];
+                        const lr = row + legs[i][0], lc = col + legs[i][1];
+                        if (!inBoard(nr, nc)) continue;
+                        if (b[lr][lc]) continue;
+                        addMove(nr, nc);
+                    }
+                    break;
+                }
+                case '俥':
+                case '車': {
+                    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                    for (let d of dirs) {
+                        let r = row + d[0], c = col + d[1];
+                        while (inBoard(r, c)) {
+                            if (b[r][c]) {
+                                if (b[r][c].color === enemy) {
+                                    addMove(r, c);
+                                }
+                                break;
+                            }
+                            addMove(r, c);
+                            r += d[0];
+                            c += d[1];
+                        }
+                    }
+                    break;
+                }
+                case '砲': {
+                    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                    for (let d of dirs) {
+                        let r = row + d[0], c = col + d[1];
+                        let jumped = false;
+                        while (inBoard(r, c)) {
+                            if (!jumped) {
+                                if (b[r][c]) {
+                                    jumped = true;
+                                } else {
+                                    addMove(r, c);
+                                }
+                            } else {
+                                if (b[r][c]) {
+                                    if (b[r][c].color === enemy) {
+                                        addMove(r, c);
+                                    }
+                                    break;
+                                }
+                            }
+                            r += d[0];
+                            c += d[1];
+                        }
+                    }
+                    break;
+                }
+                case '兵': {
+                    const forward = color === RED ? -1 : 1;
+                    const crossed = color === RED ? (row <= 4) : (row >= 5);
+                    const nr = row + forward;
+                    if (inBoard(nr, col)) addMove(nr, col);
+                    if (crossed) {
+                        if (inBoard(row, col - 1)) addMove(row, col - 1);
+                        if (inBoard(row, col + 1)) addMove(row, col + 1);
+                    }
+                    break;
+                }
+                case '卒': {
+                    const forward = 1;
+                    const crossed = row >= 5;
+                    const nr = row + forward;
+                    if (inBoard(nr, col)) addMove(nr, col);
+                    if (crossed) {
+                        if (inBoard(row, col - 1)) addMove(row, col - 1);
+                        if (inBoard(row, col + 1)) addMove(row, col + 1);
+                    }
+                    break;
+                }
+            }
+            return moves;
+        }
+
+        // ----- 走法合法性过滤 -----
+        function filterLegalMoves(b, row, col, rawMoves) {
+            const piece = b[row][col];
+            if (!piece) return [];
+            const color = piece.color;
+            const isRed = color === RED;
+            const legal = [];
+
+            for (let m of rawMoves) {
+                const simBoard = cloneBoard(b);
+
+                // 执行走法
+                const movingPiece = simBoard[m.fromRow][m.fromCol];
+                const captured = simBoard[m.toRow][m.toCol];
+                simBoard[m.toRow][m.toCol] = movingPiece;
+                simBoard[m.fromRow][m.fromCol] = null;
+
+                // 标记兵/卒已动
+                if (movingPiece.type === '兵' || movingPiece.type === '卒') {
+                    movingPiece.moved = true;
+                }
+
+                // 红方前线限制：红方在黑方半场的非砲棋子 ≤ 4
+                if (isRed) {
+                    const frontlineCount = countRedFrontline(simBoard);
+                    if (frontlineCount > 4) continue;
+                }
+
+                // 黑方：检查将是否被吃
+                if (!isRed) {
+                    const king = findKing(simBoard, BLACK);
+                    if (!king) continue;
+                }
+
+                legal.push(m);
+            }
+            return legal;
+        }
+
+        // ----- 获取所有合法走法 -----
+        function getAllLegalMoves(b, color) {
+            const all = [];
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const p = b[r][c];
+                    if (p && p.color === color) {
+                        const raw = generateRawMoves(b, r, c);
+                        const legal = filterLegalMoves(b, r, c, raw);
+                        all.push(...legal);
+                    }
+                }
+            }
+            return all;
+        }
+
+        // ----- 检查游戏结束 -----
+        function checkGameOver(b, color) {
+            // 红方胜利：将死或困毙黑将
+            if (checkRedWin(b)) return '红胜';
+
+            // 黑方胜利：吃光俥/马
+            if (checkBlackWin(b)) return '黑胜';
+
+            return null;
+        }
+
+        // ----- 执行走法 -----
+        function executeMove(b, move) {
+            const nb = cloneBoard(b);
+            const piece = nb[move.fromRow][move.fromCol];
+            const captured = nb[move.toRow][move.toCol];
+
+            nb[move.toRow][move.toCol] = piece;
+            nb[move.fromRow][move.fromCol] = null;
+
+            // 标记兵/卒已动
+            if (piece.type === '兵' || piece.type === '卒') {
+                piece.moved = true;
+            }
+
+            return nb;
+        }
+
+        // ----- 走一步 -----
+        function makeMove(move) {
+            if (gameOver) return false;
+            const piece = board[move.fromRow][move.fromCol];
+            if (!piece || piece.color !== currentTurn) return false;
+
+            const valid = legalMovesForSelected.some(m =>
+                m.toRow === move.toRow && m.toCol === move.toCol
+            );
+            if (!valid) return false;
+
+            board = executeMove(board, move);
+            moveCount++;
+
+            const nextTurn = currentTurn === RED ? BLACK : RED;
+            currentTurn = nextTurn;
+            selected = null;
+            legalMovesForSelected = [];
+
+            const result = checkGameOver(board, currentTurn);
+            if (result) {
+                gameOver = true;
+                gameResult = result;
+                statusDisplay.textContent = result;
+            } else {
+                statusDisplay.textContent = '对弈中';
+            }
+            updateTurnDisplay();
+            updateStats();
+            render();
+            return true;
+        }
+
+        // ----- 更新显示 -----
+        function updateTurnDisplay() {
+            if (gameOver) {
+                turnIndicator.textContent = gameResult;
+                return;
+            }
+            turnIndicator.textContent = currentTurn === RED ? '🔴 红方走' : '⚫ 黑方走';
+        }
+
+        function updateStats() {
+            const { che, ma } = countRedCheAndMa(board);
+            statsDisplay.textContent = `俥${che} 马${ma}`;
+        }
+
+        // ----- 重置 -----
+        function resetGame() {
+            board = initBoard();
+            currentTurn = RED;
+            gameOver = false;
+            gameResult = '';
+            selected = null;
+            legalMovesForSelected = [];
+            moveCount = 0;
+            statusDisplay.textContent = '对弈中';
+            updateTurnDisplay();
+            updateStats();
+            render();
+        }
+
+        // ----- 绘制 -----
+        function render() {
+            ctx.clearRect(0, 0, SIZE, SIZE);
+            drawBoard();
+            drawPieces();
+            if (selected) drawSelection(selected.row, selected.col);
+            drawLegalMoves();
+            drawFrontlineCount();
+        }
+
+        function drawBoard() {
+            ctx.strokeStyle = '#2d1c0a';
+            ctx.lineWidth = 1.8;
+
+            for (let r = 0; r < 10; r++) {
+                ctx.beginPath();
+                ctx.moveTo(getX(0), getY(r));
+                ctx.lineTo(getX(8), getY(r));
+                ctx.stroke();
+            }
+            for (let c = 0; c < 9; c++) {
+                if (c === 0 || c === 8) {
+                    ctx.beginPath();
+                    ctx.moveTo(getX(c), getY(0));
+                    ctx.lineTo(getX(c), getY(9));
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(getX(c), getY(0));
+                    ctx.lineTo(getX(c), getY(4));
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(getX(c), getY(5));
+                    ctx.lineTo(getX(c), getY(9));
+                    ctx.stroke();
+                }
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(getX(3), getY(0));
+            ctx.lineTo(getX(5), getY(2));
+            ctx.moveTo(getX(5), getY(0));
+            ctx.lineTo(getX(3), getY(2));
+            ctx.moveTo(getX(3), getY(7));
+            ctx.lineTo(getX(5), getY(9));
+            ctx.moveTo(getX(5), getY(7));
+            ctx.lineTo(getX(3), getY(9));
+            ctx.stroke();
+
+            const marks = [
+                [6, 0], [6, 2], [6, 4], [6, 6], [6, 8],
+                [7, 1], [7, 7],
+                [3, 0], [3, 2], [3, 4], [3, 6], [3, 8],
+                [2, 1], [2, 7]
+            ];
+            ctx.fillStyle = '#2d1c0a';
+            marks.forEach(([r, c]) => {
+                ctx.beginPath();
+                ctx.arc(getX(c), getY(r), 5, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+
+            ctx.fillStyle = '#4d3320';
+            ctx.font = 'bold 28px "KaiTi", "STKaiti", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const riverY = (getY(4) + getY(5)) / 2;
+            ctx.fillText('楚  河', getX(2), riverY);
+            ctx.fillText('汉  界', getX(6), riverY);
+
+            // 标注黑方半场 (浅色)
+            ctx.fillStyle = 'rgba(0,0,0,0.04)';
+            ctx.fillRect(MARGIN, MARGIN, 8 * CELL_SIZE, 4 * CELL_SIZE);
+        }
+
+        function drawPieces() {
+            for (let r = 0; r < 10; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const p = board[r][c];
+                    if (!p) continue;
+                    const x = getX(c), y = getY(r);
+                    const gradient = ctx.createRadialGradient(x - 6, y - 6, 6, x, y, RADIUS + 2);
+                    if (p.color === RED) {
+                        gradient.addColorStop(0, '#f5d0b0');
+                        gradient.addColorStop(0.6, '#c04030');
+                        gradient.addColorStop(1, '#6a1a0a');
+                    } else {
+                        gradient.addColorStop(0, '#d0d0d0');
+                        gradient.addColorStop(0.6, '#2a2a2a');
+                        gradient.addColorStop(1, '#0a0a0a');
+                    }
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(x, y, RADIUS, 0, 2 * Math.PI);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#f0e0b0';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = p.color === RED ? '#f5e8c0' : '#e0e0e0';
+                    ctx.font = `bold ${RADIUS * 1.1}px "KaiTi", "STKaiti", "SimSun", serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    let label = p.type;
+                    if (p.type === '卒' && p.moved) label = '卒*';
+                    if (p.type === '兵' && p.moved) label = '兵*';
+                    ctx.fillText(label, x, y + 1);
+
+                    // 标记受保护的卒 (城墙标记)
+                    if (p.color === BLACK && p.type === '卒' && !p.moved) {
+                        ctx.strokeStyle = 'rgba(255,215,0,0.5)';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(x, y, RADIUS + 4, 0, 2 * Math.PI);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function drawSelection(row, col) {
+            const x = getX(col), y = getY(row);
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#f7e05e';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(x, y, RADIUS + 4, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+
+        function drawLegalMoves() {
+            for (let m of legalMovesForSelected) {
+                const x = getX(m.toCol), y = getY(m.toRow);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(50, 200, 80, 0.6)';
+                ctx.beginPath();
+                ctx.arc(x, y, 12, 0, 2 * Math.PI);
+                ctx.fill();
+                if (board[m.toRow][m.toCol]) {
+                    ctx.strokeStyle = '#ffdd44';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, RADIUS + 2, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function drawFrontlineCount() {
+            const count = countRedFrontline(board);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`前线: ${count}/4`, 10, 10);
+        }
+
+        // ----- 事件处理 -----
+        function handleCanvasClick(e) {
+            if (gameOver) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+
+            const col = Math.round((mouseX - MARGIN) / CELL_SIZE);
+            const row = Math.round((mouseY - MARGIN) / CELL_SIZE);
+            if (!inBoard(row, col)) return;
+
+            const clicked = board[row][col];
+
+            if (clicked && clicked.color === currentTurn) {
+                const raw = generateRawMoves(board, row, col);
+                const legal = filterLegalMoves(board, row, col, raw);
+                if (legal.length > 0) {
+                    selected = { row, col };
+                    legalMovesForSelected = legal;
+                    render();
+                } else {
+                    selected = null;
+                    legalMovesForSelected = [];
+                    render();
+                }
+                return;
+            }
+
+            if (selected) {
+                const move = { fromRow: selected.row, fromCol: selected.col, toRow: row, toCol: col };
+                const valid = legalMovesForSelected.some(m => m.toRow === row && m.toCol === col);
+                if (valid) {
+                    makeMove(move);
+                } else {
+                    selected = null;
+                    legalMovesForSelected = [];
+                    render();
+                }
+            }
+        }
+
+        canvas.addEventListener('click', handleCanvasClick);
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+        resetGame();
+    })();
+</script>
+</body>
+</html>
