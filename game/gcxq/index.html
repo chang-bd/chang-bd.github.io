@@ -390,14 +390,17 @@
                         [1, -2], [1, 2], [2, -1], [2, 1]
                     ];
                     const legs = [
-                        [-1, 0], [-1, 0], [0, -1], [0, -1],
-                        [0, -1], [0, -1], [1, 0], [1, 0]
+                        [-1, 0], [-1, 0], [0, -1], [0, 1],
+                        [0, -1], [0, 1], [1, 0], [1, 0]
                     ];
                     for (let i = 0; i < jumps.length; i++) {
                         const nr = row + jumps[i][0], nc = col + jumps[i][1];
                         const lr = row + legs[i][0], lc = col + legs[i][1];
                         if (!inBoard(nr, nc)) continue;
-                        if (b[lr][lc]) continue;
+                        if (b[lr][lc]) {
+    console.log(`马在(${row},${col}) 被 (${lr},${lc}) 挡住，不能跳向 (${nr},${nc})`);
+    continue;
+}
                         addMove(nr, nc);
                     }
                     break;
@@ -828,7 +831,7 @@
     })();
     document.getElementById('howToPlayBtn').addEventListener('click', function() {
     // ===== 请将下面的网址替换为您自己的网址 =====
-    window.open('https://chang-bd.github.io/game/gcxq/introductiong/', '_blank');
+    window.open('https://chang-bd.github.io/game/gcxq/introducton/', '_blank');
     // ============================================
 });
 </script>
